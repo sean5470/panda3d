@@ -24,6 +24,7 @@ struct android_app *panda_android_app = NULL;
 jclass    jni_PandaActivity;
 jmethodID jni_PandaActivity_readBitmapSize;
 jmethodID jni_PandaActivity_readBitmap;
+jmethodID jni_PandaActivity_showToast;
 
 jclass   jni_BitmapFactory_Options;
 jfieldID jni_BitmapFactory_Options_outWidth;
@@ -49,8 +50,9 @@ init_libandroid() {
 jint JNI_OnLoad(JavaVM *jvm, void *reserved) {
   init_libandroid();
 
-  JNIEnv *env = get_jni_env();
-  assert(env != NULL);
+  Thread *thread = Thread::get_current_thread();
+  JNIEnv *env = thread->get_jni_env();
+  nassertr(env != nullptr, -1);
 
   jni_PandaActivity = env->FindClass("org/panda3d/android/PandaActivity");
   jni_PandaActivity = (jclass) env->NewGlobalRef(jni_PandaActivity);
@@ -60,6 +62,9 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved) {
 
   jni_PandaActivity_readBitmap = env->GetStaticMethodID(jni_PandaActivity,
                    "readBitmap", "(JI)Landroid/graphics/Bitmap;");
+
+  jni_PandaActivity_showToast = env->GetMethodID(jni_PandaActivity,
+                   "showToast", "(Ljava/lang/String;I)V");
 
   jni_BitmapFactory_Options = env->FindClass("android/graphics/BitmapFactory$Options");
   jni_BitmapFactory_Options = (jclass) env->NewGlobalRef(jni_BitmapFactory_Options);
@@ -75,8 +80,24 @@ jint JNI_OnLoad(JavaVM *jvm, void *reserved) {
  * references.
  */
 void JNI_OnUnload(JavaVM *jvm, void *reserved) {
-  JNIEnv *env = get_jni_env();
+  Thread *thread = Thread::get_current_thread();
+  JNIEnv *env = thread->get_jni_env();
+  nassertv(env != nullptr);
 
   env->DeleteGlobalRef(jni_PandaActivity);
   env->DeleteGlobalRef(jni_BitmapFactory_Options);
+}
+
+/**
+ * Shows a toast notification at the bottom of the activity.  The duration
+ * should be 0 for short and 1 for long.
+ */
+void android_show_toast(ANativeActivity *activity, const string &message, int duration) {
+  Thread *thread = Thread::get_current_thread();
+  JNIEnv *env = thread->get_jni_env();
+  nassertv(env != nullptr);
+
+  jstring jmsg = env->NewStringUTF(message.c_str());
+  env->CallVoidMethod(activity->clazz, jni_PandaActivity_showToast, jmsg, (jint)duration);
+  env->DeleteLocalRef(jmsg);
 }
